@@ -12,6 +12,7 @@ import {
   EXTENSIONS_CONFIG_FILENAME,
   EXTENSIONS_DIRECTORY_NAME,
   filterActiveExtensions,
+  findExtensionConfigPath,
   loadExtensions,
 } from './extension.js';
 
@@ -124,6 +125,101 @@ describe('filterActiveExtensions', () => {
     filterActiveExtensions(extensions, ['ext4']);
     expect(consoleSpy).toHaveBeenCalledWith('Extension not found: ext4');
     consoleSpy.mockRestore();
+  });
+});
+
+describe('filterActiveExtensions with enabled property', () => {
+  const extensions = [
+    {
+      config: { name: 'ext1', version: '1.0.0', enabled: true },
+      contextFiles: [],
+    },
+    {
+      config: { name: 'ext2', version: '1.0.0', enabled: false },
+      contextFiles: [],
+    },
+    { config: { name: 'ext3', version: '1.0.0' }, contextFiles: [] },
+  ];
+
+  it('should return only enabled extensions by default', () => {
+    const activeExtensions = filterActiveExtensions(extensions, [], []);
+    expect(activeExtensions).toHaveLength(2);
+    expect(activeExtensions.some((e) => e.config.name === 'ext1')).toBe(true);
+    expect(activeExtensions.some((e) => e.config.name === 'ext3')).toBe(true);
+  });
+
+  it('should enable an additional extension', () => {
+    const activeExtensions = filterActiveExtensions(extensions, [], ['ext2']);
+    expect(activeExtensions).toHaveLength(3);
+  });
+
+  it('should ignore additional extensions that are already enabled', () => {
+    const activeExtensions = filterActiveExtensions(extensions, [], ['ext1']);
+    expect(activeExtensions).toHaveLength(2);
+  });
+
+  it('should still respect the enabledExtensionNames filter', () => {
+    const activeExtensions = filterActiveExtensions(
+      extensions,
+      ['ext1'],
+      ['ext2'],
+    );
+    expect(activeExtensions).toHaveLength(1);
+    expect(activeExtensions[0].config.name).toBe('ext1');
+  });
+});
+
+describe('findExtensionConfigPath', () => {
+  let tempWorkspaceDir: string;
+  let tempHomeDir: string;
+
+  beforeEach(() => {
+    tempWorkspaceDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'gemini-cli-test-workspace-'),
+    );
+    tempHomeDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'gemini-cli-test-home-'),
+    );
+    vi.mocked(os.homedir).mockReturnValue(tempHomeDir);
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempWorkspaceDir, { recursive: true, force: true });
+    fs.rmSync(tempHomeDir, { recursive: true, force: true });
+  });
+
+  it('should find the config path in the workspace', () => {
+    const workspaceExtensionsDir = path.join(
+      tempWorkspaceDir,
+      EXTENSIONS_DIRECTORY_NAME,
+    );
+    fs.mkdirSync(workspaceExtensionsDir, { recursive: true });
+    createExtension(workspaceExtensionsDir, 'ext1', '1.0.0');
+
+    vi.spyOn(process, 'cwd').mockReturnValue(tempWorkspaceDir);
+    const configPath = findExtensionConfigPath('ext1');
+    expect(configPath).toBe(
+      path.join(workspaceExtensionsDir, 'ext1', EXTENSIONS_CONFIG_FILENAME),
+    );
+  });
+
+  it('should find the config path in the home directory', () => {
+    const homeExtensionsDir = path.join(tempHomeDir, EXTENSIONS_DIRECTORY_NAME);
+    fs.mkdirSync(homeExtensionsDir, { recursive: true });
+    createExtension(homeExtensionsDir, 'ext1', '1.0.0');
+
+    // Mock cwd to a directory that doesn't have the extension
+    vi.spyOn(process, 'cwd').mockReturnValue(tempWorkspaceDir);
+
+    const configPath = findExtensionConfigPath('ext1');
+    expect(configPath).toBe(
+      path.join(homeExtensionsDir, 'ext1', EXTENSIONS_CONFIG_FILENAME),
+    );
+  });
+
+  it('should return null if the extension is not found', () => {
+    const configPath = findExtensionConfigPath('ext1');
+    expect(configPath).toBeNull();
   });
 });
 

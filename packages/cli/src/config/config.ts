@@ -54,6 +54,7 @@ export interface CliArgs {
   allowedMcpServerNames: string[] | undefined;
   extensions: string[] | undefined;
   listExtensions: boolean | undefined;
+  enableExtension: string[] | undefined;
 }
 
 export async function parseArguments(): Promise<CliArgs> {
@@ -175,6 +176,11 @@ export async function parseArguments(): Promise<CliArgs> {
       type: 'boolean',
       description: 'List all available extensions and exit.',
     })
+    .option('enable-extension', {
+      type: 'array',
+      string: true,
+      description: 'A list of additional extensions to enable.',
+    })
 
     .version(await getCliVersion()) // This will enable the --version flag based on package.json
     .alias('v', 'version')
@@ -233,6 +239,7 @@ export async function loadCliConfig(
   const activeExtensions = filterActiveExtensions(
     extensions,
     argv.extensions || [],
+    argv.enableExtension || [],
   );
 
   // Set the context filename in the server's memoryTool module BEFORE loading memory
@@ -329,6 +336,10 @@ export async function loadCliConfig(
     maxSessionTurns: settings.maxSessionTurns ?? -1,
     listExtensions: argv.listExtensions || false,
     activeExtensions: activeExtensions.map((e) => ({
+      name: e.config.name,
+      version: e.config.version,
+    })),
+    allExtensions: extensions.map((e) => ({
       name: e.config.name,
       version: e.config.version,
     })),

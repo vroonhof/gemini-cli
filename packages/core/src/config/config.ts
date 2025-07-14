@@ -143,6 +143,7 @@ export interface ConfigParameters {
   maxSessionTurns?: number;
   listExtensions?: boolean;
   activeExtensions?: ActiveExtension[];
+  allExtensions?: ActiveExtension[];
   noBrowser?: boolean;
 }
 
@@ -182,11 +183,12 @@ export class Config {
   private readonly bugCommand: BugCommandSettings | undefined;
   private readonly model: string;
   private readonly extensionContextFilePaths: string[];
-  private readonly noBrowser: boolean;
-  private modelSwitchedDuringSession: boolean = false;
   private readonly maxSessionTurns: number;
   private readonly listExtensions: boolean;
   private readonly _activeExtensions: ActiveExtension[];
+  private readonly allExtensions: ActiveExtension[];
+  private readonly noBrowser: boolean;
+  private modelSwitchedDuringSession: boolean = false;
   flashFallbackHandler?: FlashFallbackHandler;
   private quotaErrorOccurred: boolean = false;
 
@@ -233,6 +235,7 @@ export class Config {
     this.maxSessionTurns = params.maxSessionTurns ?? -1;
     this.listExtensions = params.listExtensions ?? false;
     this._activeExtensions = params.activeExtensions ?? [];
+    this.allExtensions = params.allExtensions ?? [];
     this.noBrowser = params.noBrowser ?? false;
 
     if (params.contextFileName) {
@@ -492,6 +495,38 @@ export class Config {
 
   getActiveExtensions(): ActiveExtension[] {
     return this._activeExtensions;
+  }
+
+  getAllExtensions(): ActiveExtension[] {
+    return this.allExtensions;
+  }
+
+  async enableExtension(extensionName: string): Promise<void> {
+    const alreadyActive = this._activeExtensions.find(
+      (e) => e.name === extensionName,
+    );
+    if (alreadyActive) {
+      return;
+    }
+
+    const extension = this.allExtensions.find((e) => e.name === extensionName);
+    if (extension) {
+      this._activeExtensions.push(extension);
+      await this.toolRegistry.discoverTools();
+    } else {
+      // We could throw an error here, but for now we'll just log it.
+      console.error(`Extension not found: ${extensionName}`);
+    }
+  }
+
+  async disableExtension(extensionName: string): Promise<void> {
+    const index = this._activeExtensions.findIndex(
+      (e) => e.name === extensionName,
+    );
+    if (index > -1) {
+      this._activeExtensions.splice(index, 1);
+    }
+    await this.toolRegistry.discoverTools();
   }
 
   getNoBrowser(): boolean {
