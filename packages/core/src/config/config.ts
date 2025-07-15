@@ -67,9 +67,18 @@ export interface TelemetrySettings {
   logPrompts?: boolean;
 }
 
-export interface ActiveExtension {
+export interface ExtensionConfig {
   name: string;
   version: string;
+  enabled?: boolean;
+  mcpServers?: Record<string, MCPServerConfig>;
+  contextFileName?: string | string[];
+  excludeTools?: string[];
+}
+
+export interface Extension {
+  config: ExtensionConfig;
+  contextFiles: string[];
 }
 
 export class MCPServerConfig {
@@ -142,8 +151,8 @@ export interface ConfigParameters {
   extensionContextFilePaths?: string[];
   maxSessionTurns?: number;
   listExtensions?: boolean;
-  activeExtensions?: ActiveExtension[];
-  allExtensions?: ActiveExtension[];
+  activeExtensions?: Extension[];
+  allExtensions?: Extension[];
   noBrowser?: boolean;
 }
 
@@ -182,11 +191,11 @@ export class Config {
   private readonly cwd: string;
   private readonly bugCommand: BugCommandSettings | undefined;
   private readonly model: string;
-  private readonly extensionContextFilePaths: string[];
+  private extensionContextFilePaths: string[];
   private readonly maxSessionTurns: number;
   private readonly listExtensions: boolean;
-  private readonly _activeExtensions: ActiveExtension[];
-  private readonly allExtensions: ActiveExtension[];
+  private readonly _activeExtensions: Extension[];
+  private readonly allExtensions: Extension[];
   private readonly noBrowser: boolean;
   private modelSwitchedDuringSession: boolean = false;
   flashFallbackHandler?: FlashFallbackHandler;
@@ -493,26 +502,30 @@ export class Config {
     return this.listExtensions;
   }
 
-  getActiveExtensions(): ActiveExtension[] {
+  getActiveExtensions(): Extension[] {
     return this._activeExtensions;
   }
 
-  getAllExtensions(): ActiveExtension[] {
+  getAllExtensions(): Extension[] {
     return this.allExtensions;
   }
 
   async enableExtension(extensionName: string): Promise<void> {
     const alreadyActive = this._activeExtensions.find(
-      (e) => e.name === extensionName,
+      (e) => e.config.name === extensionName,
     );
     if (alreadyActive) {
       return;
     }
 
-    const extension = this.allExtensions.find((e) => e.name === extensionName);
+    const extension = this.allExtensions.find(
+      (e) => e.config.name === extensionName,
+    );
     if (extension) {
       this._activeExtensions.push(extension);
+      this.extensionContextFilePaths.push(...extension.contextFiles);
       await this.toolRegistry.discoverTools();
+      await this.refreshMemory();
     } else {
       // We could throw an error here, but for now we'll just log it.
       console.error(`Extension not found: ${extensionName}`);
@@ -521,12 +534,17 @@ export class Config {
 
   async disableExtension(extensionName: string): Promise<void> {
     const index = this._activeExtensions.findIndex(
-      (e) => e.name === extensionName,
+      (e) => e.config.name === extensionName,
     );
     if (index > -1) {
+      const extension = this._activeExtensions[index];
       this._activeExtensions.splice(index, 1);
+      this.extensionContextFilePaths = this.extensionContextFilePaths.filter(
+        (f) => !extension.contextFiles.includes(f),
+      );
+      await this.toolRegistry.discoverTools();
+      await this.refreshMemory();
     }
-    await this.toolRegistry.discoverTools();
   }
 
   getNoBrowser(): boolean {

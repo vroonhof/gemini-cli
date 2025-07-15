@@ -7,18 +7,17 @@
 import { test, describe } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { TestRig } from './test-helper.js';
-import * as fs from 'fs';
 import * as path from 'path';
 
 function createTestExtension(
-  extDir,
+  rig,
   name,
   enabled,
   toolName = 'test_tool',
   toolResponse = 'test tool response',
 ) {
-  const geminiExtDir = path.join(extDir, '.gemini', 'extensions', name);
-  fs.mkdirSync(geminiExtDir, { recursive: true });
+  const geminiExtDir = path.join('.gemini', 'extensions', name);
+  rig.mkdir(geminiExtDir);
 
   const serverScript = `
     import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -45,10 +44,12 @@ function createTestExtension(
     const transport = new StdioServerTransport();
     await server.connect(transport);
   `;
-  const serverScriptPath = path.join(geminiExtDir, 'server.js');
-  fs.writeFileSync(serverScriptPath, serverScript);
+  const serverScriptPath = rig.createFile(
+    path.join(geminiExtDir, 'server.js'),
+    serverScript,
+  );
 
-  fs.writeFileSync(
+  rig.createFile(
     path.join(geminiExtDir, 'gemini-extension.json'),
     JSON.stringify({
       name: name,
@@ -63,16 +64,14 @@ function createTestExtension(
   );
 }
 
-
 describe('extensions', () => {
   const rig = new TestRig();
 
   test('loads extensions', () => {
-    const extDir = rig.setup('loads extensions');
-    const geminiExtDir = path.join(extDir, '.gemini', 'extensions', 'test-ext');
-    fs.mkdirSync(geminiExtDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(geminiExtDir, 'gemini-extension.json'),
+    rig.setup('loads extensions');
+    rig.mkdir(path.join('.gemini', 'extensions', 'test-ext'));
+    rig.createFile(
+      path.join('.gemini', 'extensions', 'test-ext', 'gemini-extension.json'),
       JSON.stringify({
         name: 'test-ext',
         version: '1.0.0',
@@ -84,8 +83,14 @@ describe('extensions', () => {
   });
 
   test('extension with "enabled: false" is disabled by default', () => {
-    const extDir = rig.setup('disabled extension');
-    createTestExtension(extDir, 'disabled-ext', false, 'my_tool', 'my tool response');
+    rig.setup('disabled extension');
+    createTestExtension(
+      rig,
+      'disabled-ext',
+      false,
+      'my_tool',
+      'my tool response',
+    );
 
     const output = rig.run('use my_tool');
     // We are checking that the tool response is not in the output,
@@ -94,10 +99,20 @@ describe('extensions', () => {
   });
 
   test('disabled extension can be enabled with --enable-extension', () => {
-    const extDir = rig.setup('enable disabled extension');
-    createTestExtension(extDir, 'disabled-ext', false, 'my_tool', 'my tool response');
+    rig.setup('enable disabled extension');
+    createTestExtension(
+      rig,
+      'disabled-ext',
+      false,
+      'my_tool',
+      'my tool response',
+    );
 
-    const output = rig.run('--enable-extension disabled-ext -p "use my_tool"');
+    const output = rig.run(
+      { prompt: 'use my_tool' },
+      '--enable-extension',
+      'disabled-ext',
+    );
     assert.ok(output.includes('my tool response'));
   });
 });

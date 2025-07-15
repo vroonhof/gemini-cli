@@ -7,36 +7,40 @@
 import { Config } from '@google/gemini-cli-core';
 import { SlashCommand } from './types.js';
 
-async function enable(config: Config, extensionName: string) {
+async function enable(config: Config, extensionName: string): Promise<string> {
   await config.enableExtension(extensionName);
-  console.log(`Enabled extension "${extensionName}" for this session.`);
+  return `Enabled extension "${extensionName}" for this session.`;
 }
 
-async function disable(config: Config, extensionName: string) {
+async function disable(config: Config, extensionName: string): Promise<string> {
   await config.disableExtension(extensionName);
-  console.log(`Disabled extension "${extensionName}" for this session.`);
+  return `Disabled extension "${extensionName}" for this session.`;
 }
 
-async function list(config: Config) {
+async function list(config: Config): Promise<string> {
   const allExtensions = config.getAllExtensions();
   const activeSet = new Set(
-    config.getActiveExtensions().map((ext) => ext.name),
+    config.getActiveExtensions().map((ext) => ext.config.name),
   );
 
   if (allExtensions.length === 0) {
-    console.log('No extensions installed.');
-    return;
+    return 'No extensions installed.';
   }
 
-  console.log('Available extensions:');
-  for (const extension of allExtensions) {
-    const status = activeSet.has(extension.name) ? 'enabled' : 'disabled';
-    console.log(`- ${extension.name} (${status})`);
-  }
+  const extensionList = allExtensions
+    .map((extension) => {
+      const status = activeSet.has(extension.config.name)
+        ? 'enabled'
+        : 'disabled';
+      return `- \u001b[36m${extension.config.name} (v${extension.config.version})\u001b[0m (${status})`;
+    })
+    .join('\n');
+
+  return `Available extensions:\n${extensionList}`;
 }
 
 export const extensionCommand: SlashCommand = {
-  name: 'extension',
+  name: 'extensions',
   description: 'Manage extensions for the current session',
   action: async (context, args) => {
     const config = context.services.config;
@@ -50,26 +54,54 @@ export const extensionCommand: SlashCommand = {
 
     const [subcommand, extensionName] = args.split(' ');
     if (!subcommand) {
-      console.log('Usage: /extension <list|enable|disable> [extension_name]');
-      return;
+      return {
+        type: 'message',
+        messageType: 'error',
+        content: 'Usage: /extensions <list|enable|disable> [extension_name]',
+      };
     }
 
     if (subcommand === 'list') {
-      await list(config);
+      const message = await list(config);
+      return {
+        type: 'message',
+        messageType: 'info',
+        content: message,
+      };
     } else if (subcommand === 'enable') {
       if (!extensionName) {
-        console.log('Usage: /extension enable <extension_name>');
-        return;
+        return {
+          type: 'message',
+          messageType: 'error',
+          content: 'Usage: /extensions enable <extension_name>',
+        };
       }
-      await enable(config, extensionName);
+      const message = await enable(config, extensionName);
+      return {
+        type: 'message',
+        messageType: 'info',
+        content: message,
+      };
     } else if (subcommand === 'disable') {
       if (!extensionName) {
-        console.log('Usage: /extension disable <extension_name>');
-        return;
+        return {
+          type: 'message',
+          messageType: 'error',
+          content: 'Usage: /extensions disable <extension_name>',
+        };
       }
-      await disable(config, extensionName);
+      const message = await disable(config, extensionName);
+      return {
+        type: 'message',
+        messageType: 'info',
+        content: message,
+      };
     } else {
-      console.log(`Unknown subcommand: ${subcommand}`);
+      return {
+        type: 'message',
+        messageType: 'error',
+        content: `Unknown subcommand: ${subcommand}`,
+      };
     }
   },
 };

@@ -17,10 +17,11 @@ import {
   DEFAULT_GEMINI_EMBEDDING_MODEL,
   FileDiscoveryService,
   TelemetryTarget,
+  Extension,
 } from '@google/gemini-cli-core';
 import { Settings } from './settings.js';
 
-import { Extension, filterActiveExtensions } from './extension.js';
+import { filterActiveExtensions } from './extension.js';
 import { getCliVersion } from '../utils/version.js';
 import { loadSandboxConfig } from './sandboxConfig.js';
 
@@ -335,14 +336,8 @@ export async function loadCliConfig(
     extensionContextFilePaths,
     maxSessionTurns: settings.maxSessionTurns ?? -1,
     listExtensions: argv.listExtensions || false,
-    activeExtensions: activeExtensions.map((e) => ({
-      name: e.config.name,
-      version: e.config.version,
-    })),
-    allExtensions: extensions.map((e) => ({
-      name: e.config.name,
-      version: e.config.version,
-    })),
+    activeExtensions,
+    allExtensions: extensions,
     noBrowser: !!process.env.NO_BROWSER,
   });
 }

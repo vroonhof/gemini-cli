@@ -39,7 +39,7 @@ export class TestRig {
   }
 
   mkdir(dir) {
-    mkdirSync(join(this.testDir, dir));
+    mkdirSync(join(this.testDir, dir), { recursive: true });
   }
 
   sync() {

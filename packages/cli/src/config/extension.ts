@@ -4,27 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MCPServerConfig } from '@google/gemini-cli-core';
+import { Extension, ExtensionConfig } from '@google/gemini-cli-core';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
 export const EXTENSIONS_DIRECTORY_NAME = path.join('.gemini', 'extensions');
 export const EXTENSIONS_CONFIG_FILENAME = 'gemini-extension.json';
-
-export interface Extension {
-  config: ExtensionConfig;
-  contextFiles: string[];
-}
-
-export interface ExtensionConfig {
-  name: string;
-  version: string;
-  enabled?: boolean;
-  mcpServers?: Record<string, MCPServerConfig>;
-  contextFileName?: string | string[];
-  excludeTools?: string[];
-}
 
 export function loadExtensions(workspaceDir: string): Extension[] {
   const allExtensions = [
